@@ -12,6 +12,7 @@ from modules.data_processor import DataProcessor
 from modules.report_generator import ReportGenerator
 from modules.database_manager import DatabaseManager
 from modules.general_data_analyzer import GeneralDataAnalyzer
+from modules.tooltip_manager import TooltipManager
 from utils.helpers import format_currency, get_date_range_options
 import uuid
 
@@ -487,6 +488,19 @@ def show_general_data_analysis():
     st.header("📊 General Data Analysis")
     st.markdown("Upload any CSV file to get comprehensive visualizations and insights")
     
+    # Initialize tooltip manager
+    tooltip_manager = TooltipManager()
+    
+    # Show guided tour and help
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        tooltip_manager.show_guided_tour()
+    with col2:
+        tooltip_manager.create_step_by_step_guide()
+    
+    # Interactive help for file upload
+    tooltip_manager.show_interactive_help('file_upload')
+    
     # File upload section
     with st.expander("📤 Upload Your Data", expanded=True):
         uploaded_file = st.file_uploader(
@@ -517,6 +531,9 @@ def show_general_data_analysis():
                 st.subheader("📋 Data Preview")
                 st.dataframe(data.head(10), use_container_width=True)
                 
+                # Show data loading success
+                st.success("Data loaded successfully!")
+                
             except Exception as e:
                 st.error(f"Error reading file: {str(e)}")
                 return
@@ -528,6 +545,18 @@ def show_general_data_analysis():
         
         # Analyze data structure
         structure_info = analyzer.analyze_data_structure(data)
+        
+        # Show column mapping help
+        tooltip_manager.show_interactive_help('column_mapping')
+        
+        # Show data transformation steps
+        tooltip_manager.show_data_transformation_steps({
+            'rows': len(data),
+            'numeric_columns': structure_info['numeric_columns'],
+            'categorical_columns': structure_info['categorical_columns'],
+            'date_columns': structure_info['date_columns'],
+            'missing_percentage': (data.isnull().sum().sum() / (len(data) * len(data.columns))) * 100
+        })
         
         # Display data structure information
         with st.expander("🔍 Data Structure Analysis", expanded=True):
@@ -557,23 +586,40 @@ def show_general_data_analysis():
                 else:
                     st.write("None found")
         
+        # Show visualization help
+        tooltip_manager.show_interactive_help('visualization')
+        
         # Generate visualizations
         if st.button("🚀 Generate Comprehensive Analysis", type="primary"):
             with st.spinner("Generating visualizations and insights..."):
                 
+                # Show progress for chart generation
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                status_text.text("Generating charts and analysis...")
+                
                 # Data Summary Dashboard
                 st.subheader("📊 Data Summary Dashboard")
+                tooltip_manager.show_chart_explanation('histogram')
                 summary_chart = analyzer.create_summary_dashboard()
                 if summary_chart:
                     st.plotly_chart(summary_chart, use_container_width=True)
                 
+                # Update progress
+                progress_bar.progress(25)
+                status_text.text("Creating distribution analysis...")
+                
                 # Numeric Analysis
                 if structure_info['numeric_columns']:
                     st.subheader("📈 Numeric Data Analysis")
+                    tooltip_manager.show_chart_explanation('histogram')
                     numeric_charts = analyzer.create_numeric_analysis()
                     if numeric_charts:
                         for i, chart in enumerate(numeric_charts):
                             st.plotly_chart(chart, use_container_width=True)
+                            # Show correlation explanation for correlation matrix
+                            if i == len(numeric_charts) - 1 and len(structure_info['numeric_columns']) > 1:
+                                tooltip_manager.show_chart_explanation('correlation')
                 
                 # Categorical Analysis
                 if structure_info['categorical_columns']:
