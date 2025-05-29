@@ -606,8 +606,10 @@ def show_general_data_analysis():
                     st.plotly_chart(summary_chart, use_container_width=True)
                 
                 # Update progress
-                progress_bar.progress(25)
-                status_text.text("Creating distribution analysis...")
+                if progress_bar:
+                    progress_bar.progress(25)
+                if status_text:
+                    status_text.text("Creating distribution analysis...")
                 
                 # Numeric Analysis
                 if structure_info['numeric_columns']:
