@@ -11,6 +11,7 @@ from modules.sales_analyzer import SalesAnalyzer
 from modules.data_processor import DataProcessor
 from modules.report_generator import ReportGenerator
 from modules.database_manager import DatabaseManager
+from modules.general_data_analyzer import GeneralDataAnalyzer
 from utils.helpers import format_currency, get_date_range_options
 import uuid
 
@@ -41,7 +42,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.selectbox(
         "Select Analysis Type",
-        ["Overview", "Market Trend Analysis", "Sales Data Analysis", "Combined Reports", "Database Manager"]
+        ["Overview", "Market Trend Analysis", "Sales Data Analysis", "General Data Analysis", "Combined Reports", "Database Manager"]
     )
     
     # Initialize analyzers
@@ -58,6 +59,8 @@ def main():
         show_sales_analysis(sales_analyzer, data_processor)
     elif page == "Combined Reports":
         show_combined_reports(report_generator)
+    elif page == "General Data Analysis":
+        show_general_data_analysis()
     elif page == "Database Manager":
         show_database_manager()
 
@@ -478,6 +481,180 @@ def show_database_manager():
                 )
             else:
                 st.warning("No analysis results found")
+
+def show_general_data_analysis():
+    """Display general data analysis interface for any CSV file"""
+    st.header("📊 General Data Analysis")
+    st.markdown("Upload any CSV file to get comprehensive visualizations and insights")
+    
+    # File upload section
+    with st.expander("📤 Upload Your Data", expanded=True):
+        uploaded_file = st.file_uploader(
+            "Choose a CSV file",
+            type=['csv'],
+            help="Upload any CSV file with your data - works with sales, financial, survey, or any other structured data"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Load the data
+                data = pd.read_csv(uploaded_file)
+                st.session_state.general_data = data
+                
+                st.success(f"File uploaded successfully! {len(data)} rows and {len(data.columns)} columns loaded.")
+                
+                # Show basic info
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Rows", len(data))
+                with col2:
+                    st.metric("Total Columns", len(data.columns))
+                with col3:
+                    file_size = uploaded_file.size / 1024 / 1024  # MB
+                    st.metric("File Size", f"{file_size:.2f} MB")
+                
+                # Show data preview
+                st.subheader("📋 Data Preview")
+                st.dataframe(data.head(10), use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
+                return
+    
+    # Analysis section
+    if 'general_data' in st.session_state and st.session_state.general_data is not None:
+        data = st.session_state.general_data
+        analyzer = GeneralDataAnalyzer()
+        
+        # Analyze data structure
+        structure_info = analyzer.analyze_data_structure(data)
+        
+        # Display data structure information
+        with st.expander("🔍 Data Structure Analysis", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.write("**Numeric Columns:**")
+                if structure_info['numeric_columns']:
+                    for col in structure_info['numeric_columns']:
+                        st.write(f"• {col}")
+                else:
+                    st.write("None found")
+            
+            with col2:
+                st.write("**Categorical Columns:**")
+                if structure_info['categorical_columns']:
+                    for col in structure_info['categorical_columns']:
+                        st.write(f"• {col}")
+                else:
+                    st.write("None found")
+            
+            with col3:
+                st.write("**Date Columns:**")
+                if structure_info['date_columns']:
+                    for col in structure_info['date_columns']:
+                        st.write(f"• {col}")
+                else:
+                    st.write("None found")
+        
+        # Generate visualizations
+        if st.button("🚀 Generate Comprehensive Analysis", type="primary"):
+            with st.spinner("Generating visualizations and insights..."):
+                
+                # Data Summary Dashboard
+                st.subheader("📊 Data Summary Dashboard")
+                summary_chart = analyzer.create_summary_dashboard()
+                if summary_chart:
+                    st.plotly_chart(summary_chart, use_container_width=True)
+                
+                # Numeric Analysis
+                if structure_info['numeric_columns']:
+                    st.subheader("📈 Numeric Data Analysis")
+                    numeric_charts = analyzer.create_numeric_analysis()
+                    if numeric_charts:
+                        for i, chart in enumerate(numeric_charts):
+                            st.plotly_chart(chart, use_container_width=True)
+                
+                # Categorical Analysis
+                if structure_info['categorical_columns']:
+                    st.subheader("📊 Categorical Data Analysis")
+                    categorical_charts = analyzer.create_categorical_analysis()
+                    if categorical_charts:
+                        for chart in categorical_charts:
+                            st.plotly_chart(chart, use_container_width=True)
+                
+                # Time Series Analysis
+                if structure_info['date_columns'] and structure_info['numeric_columns']:
+                    st.subheader("📅 Time Series Analysis")
+                    time_charts = analyzer.create_time_series_analysis()
+                    if time_charts:
+                        for chart in time_charts:
+                            st.plotly_chart(chart, use_container_width=True)
+                
+                # Cross Analysis
+                st.subheader("🔗 Cross-Variable Analysis")
+                cross_charts = analyzer.create_cross_analysis()
+                if cross_charts:
+                    for chart in cross_charts:
+                        st.plotly_chart(chart, use_container_width=True)
+                
+                # Data Insights
+                st.subheader("💡 Key Insights")
+                insights = analyzer.get_data_insights()
+                for insight in insights:
+                    st.write(f"• {insight}")
+                
+                # Statistical Summary
+                if structure_info['numeric_columns']:
+                    st.subheader("📋 Statistical Summary")
+                    st.dataframe(data[structure_info['numeric_columns']].describe(), use_container_width=True)
+        
+        # Export options
+        st.subheader("📤 Export Options")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📊 Download Analysis Report"):
+                summary_report = analyzer.export_summary_report()
+                if summary_report:
+                    report_text = f"""
+DATA ANALYSIS REPORT
+==================
+
+Dataset Information:
+- Rows: {summary_report['dataset_info']['rows']:,}
+- Columns: {summary_report['dataset_info']['columns']}
+- Size: {summary_report['dataset_info']['size_mb']:.2f} MB
+
+Column Analysis:
+- Numeric columns: {len(summary_report['column_analysis']['numeric_columns'])}
+- Categorical columns: {len(summary_report['column_analysis']['categorical_columns'])}
+- Date columns: {len(summary_report['column_analysis']['date_columns'])}
+
+Data Quality Metrics:
+- Completeness: {summary_report['data_quality'].get('Completeness', 0):.1f}%
+- Uniqueness: {summary_report['data_quality'].get('Uniqueness', 0):.1f}%
+- Validity: {summary_report['data_quality'].get('Validity', 0):.1f}%
+
+Key Insights:
+{chr(10).join(['- ' + insight for insight in summary_report['insights']])}
+"""
+                    st.download_button(
+                        label="Download Report",
+                        data=report_text,
+                        file_name=f"data_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain"
+                    )
+        
+        with col2:
+            if st.button("📁 Download Processed Data"):
+                csv_data = data.to_csv(index=False)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_data,
+                    file_name=f"processed_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
 
 def show_combined_reports(report_generator):
     """Display combined reports interface"""
