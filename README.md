@@ -13,9 +13,8 @@ This project is a unified data analysis and insights platform built with Streaml
 
 1. **Install dependencies** (if not already installed):
    ```powershell
-   pip install -r requirements.txt
-   # or, if using pyproject.toml:
-   pip install .
+   
+   pip install dependencies
    ```
 
 2. **Start the Streamlit app**:
