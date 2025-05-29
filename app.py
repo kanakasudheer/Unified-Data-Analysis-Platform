@@ -10,7 +10,7 @@ from modules.market_analyzer import MarketAnalyzer
 from modules.sales_analyzer import SalesAnalyzer
 from modules.data_processor import DataProcessor
 from modules.report_generator import ReportGenerator
-from modules.database_manager import DatabaseManager
+# Database functionality removed due to connection issues
 from modules.general_data_analyzer import GeneralDataAnalyzer
 from modules.tooltip_manager import TooltipManager
 from utils.helpers import format_currency, get_date_range_options
@@ -31,8 +31,7 @@ if 'sales_data' not in st.session_state:
     st.session_state.sales_data = None
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = {}
-if 'db_manager' not in st.session_state:
-    st.session_state.db_manager = DatabaseManager()
+# Database manager removed
 
 def main():
     # Main title
@@ -43,7 +42,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.selectbox(
         "Select Analysis Type",
-        ["Overview", "Market Trend Analysis", "Sales Data Analysis", "General Data Analysis", "Combined Reports", "Database Manager"]
+        ["Overview", "Market Trend Analysis", "Sales Data Analysis", "General Data Analysis", "Combined Reports"]
     )
     
     # Initialize analyzers
@@ -62,8 +61,6 @@ def main():
         show_combined_reports(report_generator)
     elif page == "General Data Analysis":
         show_general_data_analysis()
-    elif page == "Database Manager":
-        show_database_manager()
 
 def show_overview():
     """Display the overview page with summary statistics and quick insights"""
@@ -247,15 +244,7 @@ def show_sales_analysis(sales_analyzer, data_processor):
                 sales_data = pd.read_csv(uploaded_file)
                 st.session_state.sales_data = sales_data
                 
-                # Generate unique upload ID
-                upload_id = str(uuid.uuid4())[:8]
-                
-                # Save to database
-                db_manager = st.session_state.db_manager
-                if db_manager.save_sales_data(sales_data, upload_id):
-                    st.success(f"Data uploaded and saved to database! {len(sales_data)} records loaded. Upload ID: {upload_id}")
-                else:
-                    st.warning(f"Data uploaded to session but couldn't save to database. {len(sales_data)} records loaded.")
+                st.success(f"Data uploaded successfully! {len(sales_data)} records loaded.")
                 
                 # Display data preview
                 st.subheader("Data Preview")
@@ -382,106 +371,7 @@ def display_sales_results():
         anomaly_display['revenue'] = anomaly_display['revenue'].apply(format_currency)
         st.dataframe(anomaly_display, use_container_width=True)
 
-def show_database_manager():
-    """Display database management interface"""
-    st.header("🗄️ Database Manager")
-    
-    db_manager = st.session_state.db_manager
-    
-    # Database status
-    st.subheader("Database Status")
-    if db_manager.engine:
-        st.success("✅ Database connected successfully")
-        
-        # Get database statistics
-        stats = db_manager.get_database_stats()
-        if stats:
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Sales Records", stats.get('total_sales_records', 0))
-            with col2:
-                st.metric("Market Records", stats.get('total_market_records', 0))
-            with col3:
-                st.metric("Analysis Results", stats.get('total_analysis_results', 0))
-            with col4:
-                st.metric("Unique Uploads", stats.get('unique_uploads', 0))
-    else:
-        st.error("❌ Database connection failed")
-        return
-    
-    # Upload History
-    st.subheader("📊 Upload History")
-    upload_history = db_manager.get_upload_history()
-    
-    if upload_history:
-        history_df = pd.DataFrame(upload_history)
-        
-        # Display upload history
-        for idx, upload in enumerate(upload_history):
-            with st.expander(f"Upload ID: {upload['upload_id']} ({upload['record_count']} records)"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Records:** {upload['record_count']}")
-                    st.write(f"**Date Range:** {upload['start_date']} to {upload['end_date']}")
-                    st.write(f"**Uploaded:** {upload['uploaded_at']}")
-                
-                with col2:
-                    if st.button(f"Load Data", key=f"load_{idx}"):
-                        # Load data from database
-                        loaded_data = db_manager.get_sales_data(upload['upload_id'])
-                        if not loaded_data.empty:
-                            st.session_state.sales_data = loaded_data[['date', 'revenue', 'product', 'quantity']].dropna()
-                            st.success(f"Loaded {len(loaded_data)} records into session")
-                            st.rerun()
-                    
-                    if st.button(f"Delete", key=f"delete_{idx}", type="secondary"):
-                        if db_manager.delete_sales_data(upload['upload_id']):
-                            st.success(f"Deleted upload {upload['upload_id']}")
-                            st.rerun()
-                        else:
-                            st.error("Failed to delete data")
-    else:
-        st.info("No upload history found")
-    
-    # Data Export
-    st.subheader("📤 Data Export")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("Export All Sales Data"):
-            all_sales_data = db_manager.get_sales_data(limit=10000)
-            if not all_sales_data.empty:
-                csv_data = all_sales_data.to_csv(index=False)
-                st.download_button(
-                    label="Download CSV",
-                    data=csv_data,
-                    file_name=f"all_sales_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("No sales data found")
-    
-    with col2:
-        if st.button("Export Analysis Results"):
-            all_results = db_manager.get_analysis_results()
-            if all_results:
-                results_df = pd.DataFrame([{
-                    'id': r['id'],
-                    'analysis_type': r['analysis_type'],
-                    'analysis_id': r['analysis_id'],
-                    'created_at': r['created_at']
-                } for r in all_results])
-                
-                csv_data = results_df.to_csv(index=False)
-                st.download_button(
-                    label="Download CSV",
-                    data=csv_data,
-                    file_name=f"analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("No analysis results found")
+# Database manager functionality removed
 
 def show_general_data_analysis():
     """Display general data analysis interface for any CSV file"""
