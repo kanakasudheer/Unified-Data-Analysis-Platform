@@ -152,20 +152,21 @@ class GeneralDataAnalyzer:
         return metrics
     
     def create_numeric_analysis(self):
-        """Create analysis for numeric columns"""
+        """Create analysis for numeric columns with stock-style charts"""
         if not self.numeric_columns:
             return None
         
         charts = []
         
+        # Check if data has OHLC structure
+        ohlc_chart = self._create_ohlc_chart()
+        if ohlc_chart:
+            charts.append(ohlc_chart)
+        
         # Distribution plots for each numeric column
         for col in self.numeric_columns[:6]:  # Limit to first 6 columns
-            fig = px.histogram(
-                self.data, 
-                x=col, 
-                title=f'Distribution of {col}',
-                marginal="box"
-            )
+            # Create stock-style distribution
+            fig = self._create_financial_histogram(col)
             charts.append(fig)
         
         # Correlation heatmap if multiple numeric columns
@@ -173,13 +174,114 @@ class GeneralDataAnalyzer:
             correlation_matrix = self.data[self.numeric_columns].corr()
             fig = px.imshow(
                 correlation_matrix,
-                title="Correlation Matrix",
-                color_continuous_scale="RdBu_r",
+                title="Correlation Matrix - Financial Style",
+                color_continuous_scale="RdYlBu_r",
                 aspect="auto"
+            )
+            fig.update_layout(
+                template='plotly_white',
+                font=dict(family="Arial", size=12)
             )
             charts.append(fig)
         
         return charts
+    
+    def _create_ohlc_chart(self):
+        """Create OHLC candlestick chart if appropriate columns exist"""
+        # Look for OHLC columns
+        ohlc_mapping = {
+            'open': ['open', 'opening', 'open_price'],
+            'high': ['high', 'highest', 'high_price', 'max'],
+            'low': ['low', 'lowest', 'low_price', 'min'],
+            'close': ['close', 'closing', 'close_price', 'final']
+        }
+        
+        found_ohlc = {}
+        for ohlc_type, possible_names in ohlc_mapping.items():
+            for col in self.data.columns:
+                if any(name in col.lower() for name in possible_names):
+                    if col in self.numeric_columns:
+                        found_ohlc[ohlc_type] = col
+                        break
+        
+        # Need at least open, high, low, close
+        if len(found_ohlc) >= 3 and self.date_columns:
+            try:
+                date_col = self.date_columns[0]
+                self.data[f'{date_col}_parsed'] = pd.to_datetime(self.data[date_col])
+                
+                # Create candlestick chart
+                fig = go.Figure(data=go.Candlestick(
+                    x=self.data[f'{date_col}_parsed'],
+                    open=self.data[found_ohlc.get('open', found_ohlc.get('close'))],
+                    high=self.data[found_ohlc.get('high')],
+                    low=self.data[found_ohlc.get('low')],
+                    close=self.data[found_ohlc.get('close')],
+                    name="Price"
+                ))
+                
+                fig.update_layout(
+                    title='Financial Candlestick Chart',
+                    template='plotly_white',
+                    xaxis_title='Date',
+                    yaxis_title='Price',
+                    height=500
+                )
+                
+                return fig
+            except:
+                pass
+        
+        return None
+    
+    def _create_financial_histogram(self, column):
+        """Create a financial-style histogram with additional stats"""
+        fig = px.histogram(
+            self.data, 
+            x=column, 
+            title=f'Distribution of {column} - Financial Analysis',
+            marginal="box",
+            nbins=30
+        )
+        
+        # Add statistical annotations
+        mean_val = self.data[column].mean()
+        median_val = self.data[column].median()
+        std_val = self.data[column].std()
+        
+        # Add vertical lines for mean and median
+        fig.add_vline(
+            x=mean_val, 
+            line_dash="dash", 
+            line_color="red",
+            annotation_text=f"Mean: {mean_val:.2f}"
+        )
+        fig.add_vline(
+            x=median_val, 
+            line_dash="dash", 
+            line_color="green",
+            annotation_text=f"Median: {median_val:.2f}"
+        )
+        
+        # Update layout with financial styling
+        fig.update_layout(
+            template='plotly_white',
+            showlegend=False,
+            font=dict(family="Arial", size=12),
+            annotations=[
+                dict(
+                    x=0.02, y=0.98,
+                    xref="paper", yref="paper",
+                    text=f"σ = {std_val:.2f}",
+                    showarrow=False,
+                    bgcolor="rgba(255,255,255,0.8)",
+                    bordercolor="black",
+                    borderwidth=1
+                )
+            ]
+        )
+        
+        return fig
     
     def create_categorical_analysis(self):
         """Create analysis for categorical columns"""
@@ -204,7 +306,7 @@ class GeneralDataAnalyzer:
         return charts
     
     def create_time_series_analysis(self):
-        """Create time series analysis if date columns exist"""
+        """Create stock price-style time series analysis if date columns exist"""
         if not self.date_columns or not self.numeric_columns:
             return None
         
@@ -216,12 +318,12 @@ class GeneralDataAnalyzer:
                 self.data[f'{date_col}_parsed'] = pd.to_datetime(self.data[date_col])
                 
                 for numeric_col in self.numeric_columns[:3]:  # Limit to first 3 numeric columns
-                    # Create time series plot
-                    fig = px.line(
+                    # Create stock price-style chart
+                    fig = self._create_stock_style_chart(
                         self.data.sort_values(f'{date_col}_parsed'),
-                        x=f'{date_col}_parsed',
-                        y=numeric_col,
-                        title=f'{numeric_col} over {date_col}'
+                        f'{date_col}_parsed',
+                        numeric_col,
+                        f'{numeric_col} over {date_col}'
                     )
                     charts.append(fig)
                     
@@ -230,6 +332,127 @@ class GeneralDataAnalyzer:
                 continue
         
         return charts
+    
+    def _create_stock_style_chart(self, data, date_col, value_col, title):
+        """Create a stock price-style chart with candlestick appearance"""
+        from plotly.subplots import make_subplots
+        
+        # Create subplot with secondary y-axis for volume if available
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=(title, 'Volume/Count'),
+            row_width=[0.7, 0.3]
+        )
+        
+        # Main price line chart with stock styling
+        fig.add_trace(
+            go.Scatter(
+                x=data[date_col],
+                y=data[value_col],
+                mode='lines',
+                name=value_col,
+                line=dict(color='#1f77b4', width=2),
+                fill=None,
+                hovertemplate='<b>%{fullData.name}</b><br>' +
+                             'Date: %{x}<br>' +
+                             'Value: %{y:,.2f}<br>' +
+                             '<extra></extra>'
+            ),
+            row=1, col=1
+        )
+        
+        # Add moving averages if enough data points
+        if len(data) >= 20:
+            ma_20 = data[value_col].rolling(window=20).mean()
+            fig.add_trace(
+                go.Scatter(
+                    x=data[date_col],
+                    y=ma_20,
+                    mode='lines',
+                    name='20-period MA',
+                    line=dict(color='orange', width=1, dash='dash'),
+                    opacity=0.7
+                ),
+                row=1, col=1
+            )
+        
+        if len(data) >= 50:
+            ma_50 = data[value_col].rolling(window=50).mean()
+            fig.add_trace(
+                go.Scatter(
+                    x=data[date_col],
+                    y=ma_50,
+                    mode='lines',
+                    name='50-period MA',
+                    line=dict(color='red', width=1, dash='dot'),
+                    opacity=0.7
+                ),
+                row=1, col=1
+            )
+        
+        # Add volume chart if we have a quantity-like column
+        volume_cols = [col for col in self.data.columns if any(keyword in col.lower() 
+                      for keyword in ['quantity', 'volume', 'count', 'amount'])]
+        
+        if volume_cols and volume_cols[0] in data.columns:
+            volume_col = volume_cols[0]
+            fig.add_trace(
+                go.Bar(
+                    x=data[date_col],
+                    y=data[volume_col],
+                    name=volume_col,
+                    marker_color='lightblue',
+                    opacity=0.6
+                ),
+                row=2, col=1
+            )
+        else:
+            # Create a simple bar chart showing daily counts
+            daily_counts = data.groupby(data[date_col].dt.date).size()
+            fig.add_trace(
+                go.Bar(
+                    x=daily_counts.index,
+                    y=daily_counts.values,
+                    name='Daily Records',
+                    marker_color='lightgreen',
+                    opacity=0.6
+                ),
+                row=2, col=1
+            )
+        
+        # Update layout with stock chart styling
+        fig.update_layout(
+            title=title,
+            xaxis_title='Date',
+            yaxis_title=value_col,
+            template='plotly_white',
+            showlegend=True,
+            height=600,
+            hovermode='x unified'
+        )
+        
+        # Style the axes
+        fig.update_xaxes(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='lightgray',
+            showline=True,
+            linewidth=2,
+            linecolor='black'
+        )
+        
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='lightgray',
+            showline=True,
+            linewidth=2,
+            linecolor='black'
+        )
+        
+        return fig
     
     def create_cross_analysis(self):
         """Create cross-analysis between different column types"""
