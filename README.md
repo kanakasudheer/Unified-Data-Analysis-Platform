@@ -43,7 +43,3 @@ This project is a unified data analysis and insights platform built with Streaml
 ## Requirements
 - Python 3.11+
 - All dependencies listed in `pyproject.toml`
-
-## Deployment
-- You can deploy this app on Streamlit Community Cloud, Heroku, or any server that supports Python and Streamlit.
-
